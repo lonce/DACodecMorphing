@@ -10,7 +10,7 @@ Uncompress dacdevdata.zip (where datafiles used in the notebooks are stored)
 
 Run this docker thus:
 ```
-docker run --ipc=host --gpus "all" -it -v /fullpath-to-local-dir:/apps --name foo --rm yourname:containername
+docker run --ipc=host --gpus "all" -it -v full-path-to-parent-of-dacdevdata-dir:/scratch -v /fullpath-to-local-dir:/apps --name foo --rm yourname:containername
 ```
 >  
     where
