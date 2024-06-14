@@ -1,189 +1,79 @@
-# Descript Audio Codec (.dac): High-Fidelity Audio Compression with Improved RVQGAN
 
-This repository contains training and inference scripts
-for the Descript Audio Codec (.dac), a high fidelity general
-neural audio codec, introduced in the paper titled **High-Fidelity Audio Compression with Improved RVQGAN**.
+## Exploring the Descript Audio Codec
 
-![](https://static.arxiv.org/static/browse/0.3.4/images/icons/favicon-16x16.png) [arXiv Paper: High-Fidelity Audio Compression with Improved RVQGAN
-](http://arxiv.org/abs/2306.06546) <br>
-📈 [Demo Site](https://descript.notion.site/Descript-Audio-Codec-11389fce0ce2419891d6591a68f814d5)<br>
-⚙ [Model Weights](https://github.com/descriptinc/descript-audio-codec/releases/download/0.0.1/weights.pth)
+<span style="color: blue;">Notebooks for showing how to code/decode, create your own dacfiles, morph in the DAC latent space, etc.</span> 
 
-👉 With Descript Audio Codec, you can compress **44.1 KHz audio** into discrete codes at a **low 8 kbps bitrate**.  <br>
-🤌 That's approximately **90x compression** while maintaining exceptional fidelity and minimizing artifacts.  <br>
-💪 Our universal model works on all domains (speech, environment, music, etc.), making it widely applicable to generative modeling of all audio.  <br>
-👌 It can be used as a drop-in replacement for EnCodec for all audio language modeling applications (such as AudioLMs, MusicLMs, MusicGen, etc.) <br>
+(Forked from the Descript RQVGAN (see their README_Descript in this repository) and modified to work with the Descript Audio Codec (DAC) and the Descript Audio Codec Morphing (DACM) models. The Descript Audio Codec is a VQ-VAE model that compresses audio files to a small number of bits, and the Descript Audio Codec Morphing model is a GAN that morphs between two audio files in the DAC latent space. The Descript Audio Codec is available at    https://github.com/descriptinc/descript-audio-codec)
 
-<p align="center">
-<img src="./assets/comparsion_stats.png" alt="Comparison of compressions approaches. Our model achieves a higher compression factor compared to all baseline methods. Our model has a ~90x compression factor compared to 32x compression factor of EnCodec and 64x of SoundStream. Note that we operate at a target bitrate of 8 kbps, whereas EnCodec operates at 24 kbps and SoundStream at 6 kbps. We also operate at 44.1 kHz, whereas EnCodec operates at 48 kHz and SoundStream operates at 24 kHz." width=35%></p>
+ 
+First let's set up a container with all the libraries and requirements you will need to run the notebooks.
 
-
-## Usage
-
-### Installation
+1) If you don't already have access to a container built from this repository (lonce:dacdevupf in S'pore, or the /home/lwyse/working/DACodecMorphing/lwyse_dacdevupf23.sif on the HPC cluster in BCN), then you can build the container yourself. 
+To build the docker container:
 ```
-pip install descript-audio-codec
-```
-OR
-
-```
-pip install git+https://github.com/descriptinc/descript-audio-codec
+docker image build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --file Dockerfile --tag yourname:containername  .
 ```
 
-### Weights
-Weights are released as part of this repo under MIT license.
-We release weights for models that can natively support 16 kHz, 24kHz, and 44.1kHz sampling rates.
-Weights are automatically downloaded when you first run `encode` or `decode` command. You can cache them using one of the following commands
-```bash
-python3 -m dac download # downloads the default 44kHz variant
-python3 -m dac download --model_type 44khz # downloads the 44kHz variant
-python3 -m dac download --model_type 24khz # downloads the 24kHz variant
-python3 -m dac download --model_type 16khz # downloads the 16kHz variant
+2) uncompress dacdevdata.zip (where datafiles used in the notebooks are stored). The notebooks get their audio files from the folder that is created.
+
+3) Run your container: 
+To run this docker thus:
 ```
-We provide a Dockerfile that installs all required dependencies for encoding and decoding. The build process caches the default model weights inside the image. This allows the image to be used without an internet connection. [Please refer to instructions below.](#docker-image)
-
-
-### Compress audio
+docker run --ipc=host --gpus "all" -it -v /fullpath-to-local-dir:/app --name foo --rm yourname:containername
 ```
-python3 -m dac encode /path/to/input --output /path/to/output/codes
+>  
+    where
+        /full-path-to-local-dir   - is the absolute path to the folder where this repository lives (/app is necessary because that's how it is referenced in the notebooks)
+       foo   - is whatever name you want to give to the running docker container
+        (the -v a:b flag maps a full path 'a' to a path you can use in the docker, 'b').
+
+If you are running on the HPC in BCN:
+
+Start an interactive session (interactive -g 1), 
+
+While you are in an interactive session on a research compute note, get the docker from the UPF repository (which automatically builds to a Singularity container): 
 ```
-
-This command will create `.dac` files with the same name as the input files.
-It will also preserve the directory structure relative to input root and
-re-create it in the output directory. Please use `python -m dac encode --help`
-for more options.
-
-### Reconstruct audio from compressed codes
+singularity pull --docker-login docker://registry.sb.upf.edu/mtg/lwyse:dacdev23
 ```
-python3 -m dac decode /path/to/output/codes --output /path/to/reconstructed_input
+Go get a cup of coffee. 
+
+Then run the container, 
 ```
-
-This command will create `.wav` files with the same name as the input files.
-It will also preserve the directory structure relative to input root and
-re-create it in the output directory. Please use `python -m dac decode --help`
-for more options.
-
-### Programmatic Usage
-```py
-import dac
-from audiotools import AudioSignal
-
-# Download a model
-model_path = dac.utils.download(model_type="44khz")
-model = dac.DAC.load(model_path)
-
-model.to('cuda')
-
-# Load audio signal file
-signal = AudioSignal('input.wav')
-
-# Encode audio signal as one long file
-# (may run out of GPU memory on long files)
-signal.to(model.device)
-
-x = model.preprocess(signal.audio_data, signal.sample_rate)
-z, codes, latents, _, _ = model.encode(x)
-
-# Decode audio signal
-y = model.decode(z)
-
-# Alternatively, use the `compress` and `decompress` functions
-# to compress long files.
-
-signal = signal.cpu()
-x = model.compress(signal)
-
-# Save and load to and from disk
-x.save("compressed.dac")
-x = dac.DACFile.load("compressed.dac")
-
-# Decompress it back to an AudioSignal
-y = model.decompress(x)
-
-# Write to file
-y.write('output.wav')
+singularity run --nv  --bind $(pwd):/app lwyse_dacdevupf23.sif
 ```
 
-### Docker image
-We provide a dockerfile to build a docker image with all the necessary
-dependencies.
-1. Building the image.
-    ```
-    docker build -t dac .
-    ```
-2. Using the image.
 
-    Usage on CPU:
-    ```
-    docker run dac <command>
-    ```
+4) Run jupyter inside your container and then point a browser to the running notebook (using an ssh tunnel as explained below). You might have your own way of doing this, but because I am running remotely, I do it this way:
 
-    Usage on GPU:
-    ```
-    docker run --gpus=all dac <command>
-    ```
-
-    `<command>` can be one of the compression and reconstruction commands listed
-    above. For example, if you want to run compression,
-
-    ```
-    docker run --gpus=all dac python3 -m dac encode ...
-    ```
-
-
-## Training
-The baseline model configuration can be trained using the following commands.
-
-### Pre-requisites
-Please install the correct dependencies
+   Run jupyter notebooks in the background:
 ```
-pip install -e ".[dev]"
+jupyter lab --no-browser --port=8889 --ip=0.0.0.0 &
 ```
-
-## Environment setup
-
-We have provided a Dockerfile and docker compose setup that makes running experiments easy.
-
-To build the docker image do:
-
+ 
+5) Point your local browser to 
 ```
-docker compose build
+localhost:xxxx
 ```
+where xxxx is the local port number you are using for the ssh tunnel to the remote machine and port number. 
 
-Then, to launch a container, do:
+If you are running a docker container, check the remote machine ip addresss this way: 
 
-```
-docker compose run -p 8888:8888 -p 6006:6006 dev
-```
+user> ^P ^Q
+  to "detach" from the docker while leaving the container running ( 'docker attach foo' will put you back in the container)
 
-The port arguments (`-p`) are optional, but useful if you want to launch a Jupyter and Tensorboard instances within the container. The
-default password for Jupyter is `password`, and the current directory
-is mounted to `/u/home/src`, which also becomes the working directory.
-
-Then, run your training command.
+> docker inspect foo
+       to find the IPAddress that the container is using
 
 
-### Single GPU training
-```
-export CUDA_VISIBLE_DEVICES=0
-python scripts/train.py --args.load conf/ablations/baseline.yml --save_path runs/baseline/
-```
+You need an ssh tunnel from you local machine to the IP and port that jupyter is running on.  Let's say the docker is using
+172.17.0.5:8889  (we specified the port when we ran jupyter), then you need a tunnel from some local port (for example 7775) to 172.17.0.5:8889.
+Once you have the tunnel set up, you can point your browser to:
+localhost:7775, and whalah, you can open the notebooks and run them.
 
-### Multi GPU training
-```
-export CUDA_VISIBLE_DEVICES=0,1
-torchrun --nproc_per_node gpu scripts/train.py --args.load conf/ablations/baseline.yml --save_path runs/baseline/
-```
+If you are running on HPC research nodes (eg node022) the remote end of the ssh tunnel would look like node002:8889 where 8889 was specified when you ran jupyter. Your local port number for the tunnel is whatever you set it to.
 
-## Testing
-We provide two test scripts to test CLI + training functionality. Please
-make sure that the trainig pre-requisites are satisfied before launching these
-tests. To launch these tests please run
-```
-python -m pytest tests
-```
+6)
+If you don't want to wait for the Descript pre-trained models to download every time (see the top of any of the notebooks), you can download the models and load them locally and point the model_path to the file. To download them, run wget at a commandline prompt:  
 
-## Results
-
-<p align="left">
-<img src="./assets/objective_comparisons.png" width=75%></p>
+wget https://github.com/descriptinc/descript-audio-codec/releases/download/0.0.5/weights_16khz.pth  
+see dac/utils/__init__.py for other models using other sample rates.
