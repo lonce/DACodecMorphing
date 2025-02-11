@@ -18,13 +18,13 @@ WORKDIR /app
 
 RUN echo machine github.com login ${GITHUB_TOKEN} > ~/.netrc
 
-COPY requirements.txt /requirements.txt
+COPY requirements_freeze.txt /requirements_freeze.txt
 
 RUN apt update && apt install -y git
 
 # install the package
 # RUN pip install llvmlite --ignore-installed
-RUN pip install --upgrade -r requirements.txt
+RUN pip install --upgrade -r requirements_freeze.txt
 
 ARG USER_ID
 ARG GROUP_ID
